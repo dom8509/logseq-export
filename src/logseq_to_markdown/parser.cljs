@@ -184,7 +184,7 @@
 
 (defn parse-links
   [text]
-  (let [link-pattern #"\[\[(.*?)\]\]"
+    (let [link-pattern #"(?:#\[\[(.*?)\]\])|(?<!#)#(\w+)"
         link-res (re-seq link-pattern text)
         desc-link-pattern #"\[(.*?)\]\(\[\[(.*?)\]\]\)"
         desc-link-res (re-seq desc-link-pattern text)]
@@ -193,14 +193,14 @@
         text
         (reduce
          #(let [current-text (first %2)
-                current-link (last %2)
+                current-link (or (second %2) (nth %2 2)) ; adjusted to account for either match in the two patterns
                 namespace-pattern #"\[\[([^\/]*\/).*\]\]"
                 namespace-res (re-find namespace-pattern text)
                 namespace-link? (not-empty namespace-res)
                 link-text (or (and namespace-link? (config/entry :trim-namespaces)
                                    (last (s/split current-link "/"))) current-link)
-                replaced-str (or (and (graph/page-exists? current-link) (str "[[[" link-text "]]]({{< ref \"/pages/" (fs/->filename current-link) "\" >}})"))
-                                 (str link-text))]
+                replaced-str (or (and (graph/page-exists? current-link) (str "#[" link-text "]({{< ref \"/pages/" (fs/->filename current-link) "\" >}})"))
+                                 (str "#" link-text))]
             (s/replace %1 current-text replaced-str))
          text
          link-res))
