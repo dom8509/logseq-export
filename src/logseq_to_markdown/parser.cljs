@@ -1,217 +1,233 @@
 (ns logseq-to-markdown.parser
-  (:require [clojure.string :as s]
-            [logseq-to-markdown.config :as config]
-            [logseq-to-markdown.fs :as fs]
-            [logseq-to-markdown.utils :as utils]
-            [logseq-to-markdown.graph :as graph]
-            [logseq-to-markdown.renderer.echarts :as echarts]
-            [logseq-to-markdown.renderer.kroki :as kroki]))
+   (:require [clojure.string :as s]
+             [logseq-to-markdown.config :as config]
+             [logseq-to-markdown.fs :as fs]
+             [logseq-to-markdown.utils :as utils]
+             [logseq-to-markdown.graph :as graph]
+             [logseq-to-markdown.renderer.echarts :as echarts]
+             [logseq-to-markdown.renderer.kroki :as kroki]))
 
-(defn parse-property-value-list
-  [property-value]
-  (let [string-value? (string? property-value)
-        object-value? (try
-                        (and (not string-value?) (> (count property-value) 0))
-                        (catch :default _ false))
-        iteratable-value? (and object-value? (> (count property-value) 1))
-        value-lines (or
-                     (and
-                      iteratable-value?
-                      (let [property-lines (map #(str "- " %) property-value)
-                            property-data (s/join "\n" property-lines)]
-                        (str "\n" property-data)))
-                     (or
+ (defn parse-property-value-list
+   [property-value]
+   (let [string-value? (string? property-value)
+         object-value? (try
+                         (and (not string-value?) (> (count property-value) 0))
+                         (catch :default _ false))
+         iteratable-value? (and object-value? (> (count property-value) 1))
+         value-lines (or
                       (and
-                       string-value?
-                       (str "\n- " property-value))
-                      (and
-                       object-value?
-                       (str "\n- " (first property-value)))
-                      (str property-value)))]
-    (str value-lines)))
+                       iteratable-value?
+                       (let [property-lines (map #(str "- " %) property-value)
+                             property-data (s/join "\n" property-lines)]
+                         (str "\n" property-data)))
+                      (or
+                       (and
+                        string-value?
+                        (str "\n- " property-value))
+                       (and
+                        object-value?
+                        (str "\n- " (first property-value)))
+                       (str property-value)))]
+     (str value-lines)))
 
-(defn parse-meta-data
-  [page]
-  (let [original-name (get page :block/original-name)
-        trim-namespaces? (config/entry :trim-namespaces)
-        namespace? (s/includes? original-name "/")
-        namespace (let [tokens (s/split original-name "/")]
-                    (s/join "/" (subvec tokens 0 (- (count tokens) 1))))
-        title (or (and trim-namespaces? namespace? (last (s/split original-name "/"))) original-name)
-        file (str (fs/->filename (or (and namespace? (last (s/split original-name "/"))) original-name)) ".md")
-        excluded-properties (config/entry :excluded-properties)
-        properties (into {} (filter #(not (contains? excluded-properties (first %))) (get page :block/properties)))
-        tags (get properties :tags)
-        categories (get properties :categories)
-        created-at (utils/->hugo-date (get page :block/created-at) (config/entry :time-pattern))
-        updated-at (utils/->hugo-date (get page :block/updated-at) (config/entry :time-pattern))
-        page-data (s/join ""
-                          ["---\n"
-                           (str "title: " title "\n")
-                           (when namespace? (str "namespace: " namespace "\n"))
-                           (str "tags: " (parse-property-value-list tags) "\n")
-                           (str "categories: " (parse-property-value-list categories) "\n")
-                           (str "date: " created-at "\n")
-                           (str "lastMod: " updated-at "\n")
-                           "---\n"])]
-    (when (config/entry :verbose)
-      (println "======================================")
-      (println (str "Title: " title))
-      (println (str "Namespace?: " namespace?))
-      (println (str "Namespace: " namespace))
-      (println (str "File: " file))
-      (println (str "Excluded Properties: " excluded-properties))
-      (println (str "Properties: " properties))
-      (println (str "Tags: " tags))
-      (println (str "Categories: " categories))
-      (println (str "Created at: " created-at))
-      (println (str "Updated at: " updated-at)))
-    {:filename file
-     :namespace namespace
-     :data page-data}))
+ (defn parse-meta-data
+   [page]
+   (let [original-name (get page :block/original-name)
+         trim-namespaces? (config/entry :trim-namespaces)
+         namespace? (s/includes? original-name "/")
+         namespace (let [tokens (s/split original-name "/")]
+                     (s/join "/" (subvec tokens 0 (- (count tokens) 1))))
+         title (or (and trim-namespaces? namespace? (last (s/split original-name "/"))) original-name)
+         file (str (fs/->filename (or (and namespace? (last (s/split original-name "/"))) original-name)) ".md")
+         excluded-properties (config/entry :excluded-properties)
+         properties (into {} (filter #(not (contains? excluded-properties (first %))) (get page :block/properties)))
+         tags (get properties :tags)
+         categories (get properties :categories)
+         created-at (utils/->hugo-date (get page :block/created-at) (config/entry :time-pattern))
+         updated-at (utils/->hugo-date (get page :block/updated-at) (config/entry :time-pattern))
+         page-data (s/join ""
+                           ["---\n"
+                            (str "title: " title "\n")
+                            (when namespace? (str "namespace: " namespace "\n"))
+                            (str "tags: " (parse-property-value-list tags) "\n")
+                            (str "categories: " (parse-property-value-list categories) "\n")
+                            (str "date: " created-at "\n")
+                            (str "lastMod: " updated-at "\n")
+                            "---\n"])]
+     (when (config/entry :verbose)
+       (println "======================================")
+       (println (str "Title: " title))
+       (println (str "Namespace?: " namespace?))
+       (println (str "Namespace: " namespace))
+       (println (str "File: " file))
+       (println (str "Excluded Properties: " excluded-properties))
+       (println (str "Properties: " properties))
+       (println (str "Tags: " tags))
+       (println (str "Categories: " categories))
+       (println (str "Created at: " created-at))
+       (println (str "Updated at: " updated-at)))
+     {:filename file
+      :namespace namespace
+      :data page-data}))
 
-(defn parse-block-refs
-  [text]
-  (let [pattern #"\(\(([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\)\)"
-        block-ref-text (re-find pattern text)
-        alias-pattern #"\[([^\[]*?)\]\([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\)"
-        alias-text (re-find alias-pattern text)]
-    (if (empty? block-ref-text)
-      (if (empty? alias-text)
-        text
-        (str (last alias-text)))
-      (let [block-ref-id (last block-ref-text)
-            data (graph/get-ref-block block-ref-id)]
-        (if (seq data)
-          (let [id-pattern (re-pattern (str "id:: " block-ref-id))]
-            (s/replace data id-pattern ""))
-          text)))))
+ (defn parse-block-refs
+   [text]
+   (let [pattern #"\(\(([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\)\)"
+         block-ref-text (re-find pattern text)
+         alias-pattern #"\[([^\[]*?)\]\([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\)"
+         alias-text (re-find alias-pattern text)]
+     (if (empty? block-ref-text)
+       (if (empty? alias-text)
+         text
+         (str (last alias-text)))
+       (let [block-ref-id (last block-ref-text)
+             data (graph/get-ref-block block-ref-id)]
+         (if (seq data)
+           (let [id-pattern (re-pattern (str "id:: " block-ref-id))]
+             (s/replace data id-pattern ""))
+           text)))))
 
-(defn parse-image
-  [text]
-  (let [pattern #"!\[.*?\]\((.*?)\)"
-        image-text (re-find pattern text)]
-    (if (empty? image-text)
-      text
-      (let [link (nth image-text 1)
-            converted-link (s/replace link #"\.\.\/" "/")
-            converted-text (s/replace text #"\.\.\/" "/")]
-        (if (not (or (s/includes? link "http") (s/includes? link "pdf")))
-          (do
-            (fs/copy-file->try
-             (str (graph/get-logseq-data-path) converted-link)
-             (str (config/entry :outputdir) converted-link))
-            (str converted-text))
-          text)))))
+ (defn parse-image
+   [text]
+   (let [pattern #"!\[.*?\]\((.*?)\)"
+         image-text (re-find pattern text)]
+     (if (empty? image-text)
+       text
+       (let [link (nth image-text 1)
+             converted-link (s/replace link #"\.\.\/" "/")
+             converted-text (s/replace text #"\.\.\/" "/")]
+         (if (not (or (s/includes? link "http") (s/includes? link "pdf")))
+           (do
+             (fs/copy-file->try
+              (str (graph/get-logseq-data-path) converted-link)
+              (str (config/entry :outputdir) converted-link))
+             (str converted-text))
+           text)))))
 
-(def diagram-code (atom {:header-found false :type ""}))
-(def diagram-code-count (atom 0))
+ (def diagram-code (atom {:header-found false :type ""}))
+ (def diagram-code-count (atom 0))
 
-(defn parse-diagram-as-code
-  [text]
-  (let [header-pattern #"{{renderer code_diagram,(.*?)}}"
-        header-res (re-find header-pattern text)
-        body-pattern #"(?s)```([a-z]*)\n(.*)```"
-        body-res (re-find body-pattern text)]
-    (if (empty? header-res)
-      (if (or (empty? body-res) (false? (:header-found @diagram-code)))
-        (do
-          (reset! diagram-code {:header-found false :type ""})
-          text)
-        (if (config/entry :prerender-diagrams)
-          (let [diagram-file (str "code_diagram_" @diagram-code-count ".svg")]
-            (kroki/render-image (last body-res) (:type @diagram-code) diagram-file)
-            (swap! diagram-code-count inc)
-            (str "{{< svg_image \"/assets/" diagram-file "\" >}}"))
-          (let [res-str (str
-                         "{{<kroki_diagram name=\"code_diagram_" @diagram-code-count "\" type=\"" (:type @diagram-code) "\">}}\n"
-                         (last body-res)
-                         "{{</kroki_diagram>}}")]
-            (swap! diagram-code-count inc)
-            res-str)))
-      (do
-        (reset! diagram-code {:header-found true :type (last header-res)})
-        (str "")))))
+ (defn parse-diagram-as-code
+   [text]
+   (let [header-pattern #"{{renderer code_diagram,(.*?)}}"
+         header-res (re-find header-pattern text)
+         body-pattern #"(?s)```([a-z]*)\n(.*)```"
+         body-res (re-find body-pattern text)]
+     (if (empty? header-res)
+       (if (or (empty? body-res) (false? (:header-found @diagram-code)))
+         (do
+           (reset! diagram-code {:header-found false :type ""})
+           text)
+         (if (config/entry :prerender-diagrams)
+           (let [diagram-file (str "code_diagram_" @diagram-code-count ".svg")]
+             (kroki/render-image (last body-res) (:type @diagram-code) diagram-file)
+             (swap! diagram-code-count inc)
+             (str "{{< svg_image \"/assets/" diagram-file "\" >}}"))
+           (let [res-str (str
+                          "{{<kroki_diagram name=\"code_diagram_" @diagram-code-count "\" type=\"" (:type @diagram-code) "\">}}\n"
+                          (last body-res)
+                          "{{</kroki_diagram>}}")]
+             (swap! diagram-code-count inc)
+             res-str)))
+       (do
+         (reset! diagram-code {:header-found true :type (last header-res)})
+         (str "")))))
 
-(def echart-code (atom {:header-found false :width 0 :height 0}))
-(def echart-code-count (atom 0))
+ (def echart-code (atom {:header-found false :width 0 :height 0}))
+ (def echart-code-count (atom 0))
 
-(defn parse-echart
-  [text]
-  (let [header-pattern #"{{renderer :logseq-echarts,\s*(.*?)px,\s*(.*?)px}}"
-        header-res (re-find header-pattern text)
-        body-pattern #"(?s)```json\n(.*)```"
-        body-res (re-find body-pattern text)]
-    (if (empty? header-res)
-      (if (or (empty? body-res) (false? (:header-found @echart-code)))
-        (do
-          (reset! echart-code {:header-found false :type ""})
-          text)
-        (if (config/entry :prerender-diagrams)
-          (let [diagram-file (str "echart_diagram_" @echart-code-count ".png")]
-            (echarts/render-image (last body-res) (:width @echart-code) (:height @echart-code) diagram-file)
-            (swap! echart-code-count inc)
-            (str "![" diagram-file "](/assets/" diagram-file ")"))
-          (let [res-str (str
-                         "{{<echart_diagram name=\"echart_diagram_" @echart-code-count "\">}}\n"
-                         (last body-res)
-                         "{{</echart_diagram>}}")]
-            (swap! echart-code-count inc)
-            res-str)))
-      (do
+ (defn parse-echart
+   [text]
+   (let [header-pattern #"{{renderer :logseq-echarts,\s*(.*?)px,\s*(.*?)px}}"
+         header-res (re-find header-pattern text)
+         body-pattern #"(?s)```json\n(.*)```"
+         body-res (re-find body-pattern text)]
+     (if (empty? header-res)
+       (if (or (empty? body-res) (false? (:header-found @echart-code)))
+         (do
+           (reset! echart-code {:header-found false :type ""})
+           text)
+         (if (config/entry :prerender-diagrams)
+           (let [diagram-file (str "echart_diagram_" @echart-code-count ".png")]
+             (echarts/render-image (last body-res) (:width @echart-code) (:height @echart-code) diagram-file)
+             (swap! echart-code-count inc)
+             (str "![" diagram-file "](/assets/" diagram-file ")"))
+           (let [res-str (str
+                          "{{<echart_diagram name=\"echart_diagram_" @echart-code-count "\">}}\n"
+                          (last body-res)
+                          "{{</echart_diagram>}}")]
+             (swap! echart-code-count inc)
+             res-str)))
+       (do
 
-        (reset! echart-code {:header-found true
-                             :width (int (nth header-res (- (count header-res) 2)))
-                             :height (int (last header-res))})
-        (str "")))))
+         (reset! echart-code {:header-found true
+                              :width (int (nth header-res (- (count header-res) 2)))
+                              :height (int (last header-res))})
+         (str "")))))
 
-(defn parse-excalidraw-diagram
-  [text]
-  (let [pattern #"\[\[draws/(.*?)\]\]"
-        res (re-find pattern text)]
-    (if (empty? res)
-      text
-      (let [diagram-name (first (s/split (last res) "."))
-            diagram-file (str (graph/get-logseq-data-path) "/draws/" (last res))
-            diagram-content (fs/slurp diagram-file)]
-        (if (config/entry :prerender-diagrams)
-          (let [diagram-file (str diagram-name ".svg")]
-            (kroki/render-image diagram-content "excalidraw" diagram-file)
-            (str "{{< svg_image \"/assets/" diagram-file "\" >}}"))
-          (str "{{<kroki_diagram name=\"" diagram-name "\" type=\"excalidraw\">}}\n"
-               diagram-content "\n"
-               "{{</kroki_diagram>}}"))))))
+ (defn parse-excalidraw-diagram
+   [text]
+   (let [pattern #"\[\[draws/(.*?)\]\]"
+         res (re-find pattern text)]
+     (if (empty? res)
+       text
+       (let [diagram-name (first (s/split (last res) "."))
+             diagram-file (str (graph/get-logseq-data-path) "/draws/" (last res))
+             diagram-content (fs/slurp diagram-file)]
+         (if (config/entry :prerender-diagrams)
+           (let [diagram-file (str diagram-name ".svg")]
+             (kroki/render-image diagram-content "excalidraw" diagram-file)
+             (str "{{< svg_image \"/assets/" diagram-file "\" >}}"))
+           (str "{{<kroki_diagram name=\"" diagram-name "\" type=\"excalidraw\">}}\n"
+                diagram-content "\n"
+                "{{</kroki_diagram>}}"))))))
 
-(defn parse-links
-  [text]
-  (let [link-pattern #"\[\[(.*?)\]\]"
-        link-res (re-seq link-pattern text)
-        desc-link-pattern #"\[(.*?)\]\(\[\[(.*?)\]\]\)"
-        desc-link-res (re-seq desc-link-pattern text)]
-    (if (empty? desc-link-res)
-      (if (empty? link-res)
-        text
-        (reduce
-         #(let [current-text (first %2)
-                current-link (last %2)
-                namespace-pattern #"\[\[([^\/]*\/).*\]\]"
-                namespace-res (re-find namespace-pattern text)
-                namespace-link? (not-empty namespace-res)
-                link-text (or (and namespace-link? (config/entry :trim-namespaces)
-                                   (last (s/split current-link "/"))) current-link)
-                replaced-str (or (and (graph/page-exists? current-link) (str "[[[" link-text "]]]({{< ref \"/pages/" (fs/->filename current-link) "\" >}})"))
-                                 (str link-text))]
-            (s/replace %1 current-text replaced-str))
+ (defn parse-links
+   [text]
+   (let [link-pattern #"(?:#\[\[(.*?)\]\])"
+         link-res (re-seq link-pattern text)
+         tag-link-pattern #"(?:#(\w+))"
+         tag-link-res (re-seq tag-link-pattern text)
+         desc-link-pattern #"\[(.*?)\]\(\[\[(.*?)\]\]\)"
+         desc-link-res (re-seq desc-link-pattern text)]
+     (if (empty? desc-link-res)
+       (if (empty? tag-link-res)
+         (if (empty? link-res)
+           text
+           (reduce
+            #(let [current-text (first %2)
+                   current-link (last %2)
+                   namespace-pattern #"\[\[([^\/]*\/).*\]\]"
+                   namespace-res (re-find namespace-pattern current-link)
+                   namespace-link? (not-empty namespace-res)
+                   link-text (or (and namespace-link? (config/entry :trim-namespaces)
+                                      (last (s/split current-link "/"))) current-link)
+                   replaced-str (or (and (graph/page-exists? current-link) (str "[[[" link-text "]]]({{< ref \"/pages/" (fs/->filename current-link) "\" >}})"))
+                                                 (str link-text))]
+               (s/replace %1 current-text replaced-str))
+            text
+            link-res))
+         (reduce
+          #(let [current-text (first %2)
+                 current-link (last %2)
+                 namespace-pattern #"([^\/]*\/).*"
+                 namespace-res (re-find namespace-pattern current-link)
+                 namespace-link? (not-empty namespace-res)
+                 link-text (or (and namespace-link? (config/entry :trim-namespaces)
+                                    (last (s/split current-link "/"))) current-link)
+                 replaced-str (or (and (graph/page-exists? current-link) (str "#[" link-text "]({{< ref \"/pages/" (fs/->filename current-link) "\" >}})"))
+                                  (str "#" link-text))]
+             (s/replace %1 current-text replaced-str))
          text
          link-res))
-      (reduce #(let [current-text (first %2)
-                     current-link (last %2)
-                     link-text (nth %2 1)
-                     replaced-str (or (and (graph/page-exists? current-link) (str "[" link-text "]({{< ref \"/pages/" (fs/->filename current-link) "\" >}})"))
-                                      (str link-text))]
-                 (s/replace %1 current-text replaced-str))
-              text
-              desc-link-res))))
+     (reduce #(let [current-text (first %2)
+                    current-link (last %2)
+                    link-text (nth %2 1)
+                    replaced-str (or (and (graph/page-exists? current-link) (str "[" link-text "]({{< ref \"/pages/" (fs/->filename current-link) "\" >}})"))
+                                     (str link-text))]
+                (s/replace %1 current-text replaced-str))
+             text
+             desc-link-res))))
 
 (defn parse-namespaces
   [level text]
